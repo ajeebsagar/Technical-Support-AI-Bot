@@ -1,0 +1,20 @@
+# Secrets — must never be committed
+.env
+
+# Python virtual environment
+venv/
+.venv/
+
+# Persisted vector store (rebuildable via `python ingest.py`)
+chroma_db/
+
+# Python caches / build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

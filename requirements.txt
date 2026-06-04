@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Pinned, mutually-compatible versions for the Upwork API Support Bot.
+# These versions are known to work together on Python 3.10+ (CPU only).
+# If pip resolves a conflict, prefer upgrading the whole langchain-* family
+# together (they share a common langchain-core constraint).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# PDF text extraction
+pypdf==5.1.0
+
+# LangChain core + the specific integration packages requested by the spec
+langchain==0.3.13
+langchain-text-splitters==0.3.4
+langchain-chroma==0.1.4
+langchain-huggingface==0.1.2
+
+# Local embedding model (all-MiniLM-L6-v2) runs through sentence-transformers
+sentence-transformers==3.3.1
+
+# Vector database (persisted to ./chroma_db)
+chromadb==0.5.23
+
+# OpenAI-compatible client — pointed at DeepInfra's base_url
+openai==1.58.1
+
+# Loads DEEPINFRA_API_KEY from a local .env file (never committed)
+python-dotenv==1.0.1
+
+# Web UI
+streamlit==1.41.1
