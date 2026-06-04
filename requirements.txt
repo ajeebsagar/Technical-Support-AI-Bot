@@ -1,9 +1,17 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Pinned, mutually-compatible versions for the Upwork API Support Bot.
-# These versions are known to work together on Python 3.10+ (CPU only).
-# If pip resolves a conflict, prefer upgrading the whole langchain-* family
-# together (they share a common langchain-core constraint).
+# Tested on Python 3.11 (CPU only). On Streamlit Community Cloud, set the app's
+# Python version to 3.11 (Advanced settings) so prebuilt wheels are used —
+# newer versions (3.13/3.14) have no wheels for these pins and would try to
+# compile from source and fail.
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Install PyTorch from its CPU-only wheel index. Without this, `torch` pulls in
+# ~2 GB of NVIDIA CUDA libraries that are useless on a CPU host and blow past
+# Streamlit Cloud's disk/time limits. The "+cpu" local version is served ONLY
+# from this index, so the resolver cannot accidentally grab the CUDA build.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
 
 # PDF text extraction
 pypdf==5.1.0
