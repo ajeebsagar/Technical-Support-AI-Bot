@@ -11,7 +11,7 @@
 # Streamlit Cloud's disk/time limits. The "+cpu" local version is served ONLY
 # from this index, so the resolver cannot accidentally grab the CUDA build.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.2+cpu
+torch==2.12.0+cpu
 
 # PDF text extraction
 pypdf==5.1.0
