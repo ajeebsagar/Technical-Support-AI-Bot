@@ -16,6 +16,8 @@ Key Streamlit-specific design choices:
 
 from __future__ import annotations
 
+import os
+
 import streamlit as st
 
 import rag  # our importable RAG core (no side effects on import)
@@ -28,6 +30,20 @@ st.set_page_config(
     page_icon="🤖",
     layout="wide",
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Secrets bridge — make the DeepInfra key available to rag.py on Streamlit Cloud.
+# Locally we read the key from .env (via python-dotenv). When deployed to
+# Streamlit Community Cloud there is no .env; the key is provided through the
+# app's "Secrets" manager and exposed via st.secrets. We copy it into os.environ
+# so rag._get_client()'s os.getenv("DEEPINFRA_API_KEY") finds it either way.
+# st.secrets raises if no secrets file exists (the normal local case), so we
+# guard it and fall back silently to the .env value.
+try:
+    if "DEEPINFRA_API_KEY" in st.secrets:
+        os.environ["DEEPINFRA_API_KEY"] = str(st.secrets["DEEPINFRA_API_KEY"])
+except Exception:
+    pass
 
 # The 3 ground-truth evaluation questions, surfaced as clickable buttons.
 SAMPLE_QUESTIONS = [
@@ -65,40 +81,57 @@ def inject_css() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Cached resources — load the heavy model + vector store only once.
 # ─────────────────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Loading embedding model & vector store...")
+@st.cache_resource(show_spinner="Preparing the knowledge base (first run builds the index)...")
 def get_vectorstore() -> rag.Chroma:
-    """Load and CACHE the Chroma vector store + embedding model once per session.
+    """Load and CACHE the vector store, BUILDING it first if necessary.
 
-    @st.cache_resource is the Streamlit-native way to hold a heavy, unserializable
-    object (the embedding model + DB handle) across reruns, so it is built a
-    single time rather than on every keystroke. (rag.load_vectorstore is also
-    memoized at the library level, so the CLI tools get the same benefit.)
+    On Streamlit Community Cloud the prebuilt ./chroma_db is not in the repo (it
+    is git-ignored), so on first boot we build it from the PDF that ships in the
+    repo — extract -> clean -> chunk -> embed -> persist — exactly what
+    `python ingest.py` does locally. This makes deployment self-healing: no manual
+    ingest step is required. The result is cached by @st.cache_resource so the
+    build happens once per app instance, not on every rerun.
 
     Returns:
         A ready-to-query Chroma instance.
 
     Raises:
-        FileNotFoundError: If the store has not been built yet (handled by caller).
+        FileNotFoundError: If neither the index nor the source PDF is available.
     """
+    if not rag.CHROMA_DIR.exists():
+        # Build the index from the bundled PDF (import here to avoid a hard
+        # dependency on ingest.py for users who only ever run a prebuilt store).
+        import ingest
+
+        pdf_path = ingest.resolve_pdf_path()
+        if not pdf_path.exists():
+            raise FileNotFoundError(
+                "No vector store and no source PDF found. Commit "
+                "'API Documentation Partial.pdf' to the repo or run "
+                "`python ingest.py` locally."
+            )
+        text, _pages = ingest.load_pdf_text(pdf_path)
+        documents = ingest.chunk_text(ingest.clean_text(text))
+        ingest.build_vectorstore(documents)
+        rag.load_vectorstore.cache_clear()  # drop any cached miss, open fresh
+
     return rag.load_vectorstore()
 
 
 def get_kb_status() -> tuple[bool, str]:
     """Determine the knowledge-base status for the sidebar indicator.
 
-    Pre-warms the cached store so the first question is fast and the sidebar can
-    show an accurate green/red badge.
+    Triggers the (cached) build/load so the first question is fast and the sidebar
+    can show an accurate green/red badge.
 
     Returns:
-        (ok, message). `ok` is True if the store exists and opened successfully.
+        (ok, message). `ok` is True if the store is ready.
     """
-    if not rag.CHROMA_DIR.exists():
-        return (False, "Vector store not found. Run `python ingest.py` first.")
     try:
-        get_vectorstore()  # warms the cache (loads the embedding model once)
+        get_vectorstore()  # builds on first run if needed, then caches
         return (True, "Knowledge base loaded and ready.")
     except Exception as exc:  # pragma: no cover - defensive
-        return (False, f"Failed to open vector store: {exc}")
+        return (False, f"Knowledge base unavailable: {exc}")
 
 
 def render_sidebar(kb_ok: bool, kb_msg: str) -> None:
